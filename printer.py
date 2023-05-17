@@ -24,7 +24,9 @@ class printer():
         self.x = 0.0
         self.y = 0.0
         self.z = 0.0
-        self.s = 0.1
+        self.x_s = 0.1
+        self.y_s = 0.1
+        self.z_s = 0.1
 
         self.limits = {
             "min_x" : 0.0,
@@ -55,6 +57,37 @@ class printer():
         if "LIMITS" in config.sections():
             for k, v in config.items("LIMITS"):
                 self.limits[k] = float(v)
+                
+        #Steps definition
+        # [STEPS]
+        # step_x = 0.01     //if x step shall be changed from the hardcoded 0.1
+        # step_y = 0.01     //if y step shall be changed from the hardcoded 0.1
+        # step_z = 0.01     //if z step shall be changed from the hardcoded 0.1
+        # step_xyz = 0.01   //if the three steps shall be changed to the same value
+        if "STEPS" in config.sections():
+            for k, v in config.items("STEPS"):
+                try:
+                    f_val = float(v)
+                    if k == 'step_x'  and f_val >= self.limits['min_s'] and f_val <= self.limits['max_s']:
+                        print(f'Changing x step from {self.x_s:.2f} to {f_val:.2f}')
+                        self.x_s = f_val
+                    elif k == 'step_y' and f_val >= self.limits['min_s'] and f_val <= self.limits['max_s']:
+                        print(f'Changing y step from {self.y_s:.2f} to {f_val:.2f}')
+                        self.y_s = f_val
+                    elif k == 'step_z' and f_val >= self.limits['min_s'] and f_val <= self.limits['max_s']:
+                        print(f'Changing z step from {self.z_s:.2f} to {f_val:.2f}')
+                        self.z_s = f_val
+                    elif k == 'step_xyz' and f_val >= self.limits['min_s'] and f_val <= self.limits['max_s']:
+                        print(f'Changing xyz steps from {self.x_s:.2f} {self.y_s:.2f} {self.z_s:.2f} to {f_val:.2f}')
+                        self.x_s = f_val
+                        self.y_s = f_val
+                        self.z_s = f_val
+                except:
+                    print('ERROR during config conversion: ', k, v)
+                else:
+                    None
+                finally:
+                    None
         
     def write(self, data=b""):
         if not self.connected:
@@ -125,7 +158,9 @@ class printer():
         self.get_pos()
 
     def set_pos(self, x, y, z):
-        self.write(f"G0 X {x:.1f} Y {y:.1f} Z {z:.1f} F6000".encode())
+        #self.write(f"G0 X {x:.1f} Y {y:.1f} Z {z:.1f} F6000".encode())
+        #Two-digits precision for A350
+        self.write(f"G0 X {x:.2f} Y {y:.2f} Z {z:.2f} F6000".encode())
         self.read_until(c=b"ok")
         self.x = x
         self.y = y
@@ -134,34 +169,52 @@ class printer():
 
     def get_pos(self):
         self.write(b"M114")
-        regex = re.compile(b'.*X:[-]*(?P<x>\d+.\d+)\sY:[-]*(?P<y>\d+.\d+)\sZ:[-]*(?P<z>\d+.\d+)\sE:')
+        #regex = re.compile(b'.*X:[-]*(?P<x>\d+.\d+)\sY:[-]*(?P<y>\d+.\d+)\sZ:[-]*(?P<z>\d+.\d+)\sE:')
+        #Taking the negative coordinate values
+        regex = re.compile(b'.*X:(?P<x>[-]*\d+.\d+)\sY:(?P<y>[-]*\d+.\d+)\sZ:(?P<z>[-]*\d+.\d+)\sE:')
         m = re.search(regex,self.read_until(c=b"ok"))
         if len(m.groups()) == 3:
             self.x = float(m.group('x'))
             self.y = float(m.group('y'))
             self.z = float(m.group('z'))
-            print(f"X {self.x:.1f} | Y {self.y:.1f} | Z {self.z:.1f} | S {self.s:.1f}")
+            #print(f"X {self.x:.1f} | Y {self.y:.1f} | Z {self.z:.1f} | S {self.s:.1f}")
+            #Two-digits precision for A350
+            print(f"X {self.x:.2f} | Y {self.y:.2f} | Z {self.z:.2f} | X_S {self.x_s:.2f} | Y_S {self.y_s:.2f} | Z_S {self.z_s:.2f}")
             return self.x,self.y,self.z
         else:
             return self._serialport.timeout
 
-    def check_limits(self,x,y,z,s):
+    def check_limits(self, x,y,z, x_s,y_s,z_s):
         if self.limits["min_x"] <= x <= self.limits["max_x"]:
             self.x = x
         else:
-            print(f"X out of bounds ({self.limits['min_x']:.1f} to {self.limits['max_x']:.1f})")
+            print(f"X out of bounds ({self.limits['min_x']:.2f} to {self.limits['max_x']:.2f})")
+            
         if self.limits["min_y"] <= y <= self.limits["max_y"]:
             self.y = y
         else:
-            print(f"Y out of bounds ({self.limits['min_y']:.1f} to {self.limits['max_y']:.1f})")
+            print(f"Y out of bounds ({self.limits['min_y']:.2f} to {self.limits['max_y']:.2f})")
+            
         if self.limits["min_z"] <= z <= self.limits["max_z"]:
             self.z = z
         else:
-            print(f"Z out of bounds ({self.limits['min_z']:.1f} to {self.limits['max_z']:.1f})")
-        if self.limits["min_s"] <= s <= self.limits["max_s"]:
-            self.s = s
+            print(f"Z out of bounds ({self.limits['min_z']:.2f} to {self.limits['max_z']:.2f})")
+            
+            
+        if self.limits["min_s"] <= x_s <= self.limits["max_s"]:
+            self.x_s = x_s
         else:
-            print(f"Steps out of bounds ({self.limits['min_s']:.1f} to {self.limits['max_s']:.1f})")
+            print(f"Step x_s out of bounds ({self.limits['min_s']:.2f} to {self.limits['max_s']:.2f})")
+            
+        if self.limits["min_s"] <= y_s <= self.limits["max_s"]:
+            self.y_s = y_s
+        else:
+            print(f"Step y_s out of bounds ({self.limits['min_s']:.2f} to {self.limits['max_s']:.2f})")
+            
+        if self.limits["min_s"] <= z_s <= self.limits["max_s"]:
+            self.z_s = z_s
+        else:
+            print(f"Step z_s out of bounds ({self.limits['min_s']:.2f} to {self.limits['max_s']:.2f})")
 
     def manual(self):
         print("Entering Manual mode...")
@@ -174,53 +227,54 @@ class printer():
                 break
             # Left Arrow
             elif c == '\x1b[D':
-                new_x = self.x - self.s
-                self.check_limits(new_x, self.y, self.z, self.s)
+                new_x = self.x - self.x_s
+                self.check_limits(new_x, self.y, self.z, self.x_s, self.y_s, self.z_s)
                 self.set_pos(self.x, self.y, self.z)
             # Right Arrow
             elif c == '\x1b[C':
-                new_x = self.x + self.s
-                self.check_limits(new_x, self.y, self.z, self.s)
+                new_x = self.x + self.x_s
+                self.check_limits(new_x, self.y, self.z, self.x_s, self.y_s, self.z_s)
                 self.set_pos(self.x, self.y, self.z)
             # Down Arrow
             elif c == '\x1b[B':
-                new_y = self.y - self.s
-                self.check_limits(self.x, new_y, self.z, self.s)
+                new_y = self.y - self.y_s
+                self.check_limits(self.x, new_y, self.z, self.x_s, self.y_s, self.z_s)
                 self.set_pos(self.x, self.y, self.z)
             # Up Arrow
             elif c == '\x1b[A':
-                new_y = self.y + self.s
-                self.check_limits(self.x, new_y, self.z, self.s)
+                new_y = self.y + self.y_s
+                self.check_limits(self.x, new_y, self.z, self.x_s, self.y_s, self.z_s)
                 self.set_pos(self.x, self.y, self.z)
             elif c == 'u':
-                new_z = self.z + self.s
-                self.check_limits(self.x, self.y, new_z, self.s)
+                new_z = self.z + self.z_s
+                self.check_limits(self.x, self.y, new_z, self.x_s, self.y_s, self.z_s)
                 self.set_pos(self.x, self.y, self.z)
             elif c == 'd':
-                new_z = self.z - self.s
-                self.check_limits(self.x, self.y, new_z, self.s)
+                new_z = self.z - self.z_s
+                self.check_limits(self.x, self.y, new_z, self.x_s, self.y_s, self.z_s)
                 self.set_pos(self.x, self.y, self.z)
             elif c == 's':
                 try:
                     new_step = float(input("Enter desired step:"))
-                    self.check_limits(self.x, self.y, self.z, new_step)
+                    self.check_limits(self.x, self.y, self.z, new_step, new_step, new_step)
                 except ValueError:
                     print("Steps value must be a float")
                     continue
-            elif c == '+':
-                if self.s < 1.0:
-                    self.s = 1.0
-                elif self.s < 10.0:
-                    self.s = 10.0
-                elif self.s < 100.0:
-                    self.s = 100.0
-            elif c == '-':
-                if self.s >= 100.0:
-                    self.s = 10.0
-                elif self.s >= 10.0:
-                    self.s = 1.0
-                elif self.s >= 1.0:
-                    self.s = 0.1
+            #This is a bit weired step increase/decrease
+            # elif c == '+':
+            #     if self.s < 1.0:
+            #         self.s = 1.0
+            #     elif self.s < 10.0:
+            #         self.s = 10.0
+            #     elif self.s < 100.0:
+            #         self.s = 100.0
+            # elif c == '-':
+            #     if self.s >= 100.0:
+            #         self.s = 10.0
+            #     elif self.s >= 10.0:
+            #         self.s = 1.0
+            #     elif self.s >= 1.0:
+            #         self.s = 0.1
             elif c == 'h':
                 if input("!!! WARNING !!! Printer will go directly to X/Y origins (a.k.a. Home) without passing GO!\r\nEnsure that nothing is still on the bed\r\nContinue (y/n)?") == "y":
                     self.go_home_xy()
